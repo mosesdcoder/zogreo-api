@@ -1,135 +1,163 @@
+using System.Reflection;
 using System.Text;
 using Hangfire;
-using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using QuestPDF.Infrastructure;
-using Zogreo.Api.Common.Errors;
-using Zogreo.Api.Common.Tenancy;
-using Zogreo.Api.Data;
+using Zogreo.Api.CurrentUser;
+using Zogreo.Api.Filters;
+using Zogreo.Api.Middleware;
+using Zogreo.Application;
+using Zogreo.Application.Common.Interfaces;
+using Zogreo.Infrastructure;
+using Zogreo.Infrastructure.Jobs;
+using Zogreo.Infrastructure.Notifications;
+using Zogreo.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 var config = builder.Configuration;
 var env = builder.Environment;
 
-// ── QuestPDF license (community) ──────────────────────────────────────────────
 QuestPDF.Settings.License = LicenseType.Community;
 
-// ── Controllers ───────────────────────────────────────────────────────────────
-builder.Services.AddControllers();
+// ── Controllers (with global response filter) ─────────────────────────────────
+builder.Services.AddControllers(options =>
+    options.Filters.Add<ApiResponseFilter>());
+builder.Services.AddHttpContextAccessor();
 
-// ── Swagger (Dev only) ────────────────────────────────────────────────────────
-if (env.IsDevelopment())
+// ── Swagger ───────────────────────────────────────────────────────────────────
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
 {
-    builder.Services.AddEndpointsApiExplorer();
-    builder.Services.AddSwaggerGen(c =>
+    c.SwaggerDoc("v1", new OpenApiInfo
     {
-        c.SwaggerDoc("v1", new OpenApiInfo { Title = "Zogreo Admissions API", Version = "v1" });
-        c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+        Title       = "Zogreo Admissions API",
+        Version     = "v1",
+        Description = "Admissions, documents, payments and student management API for " +
+                      "Zogreo Bible & Technical Training Institute (Nairobi).\n\n" +
+                      "## Authentication\n" +
+                      "1. `POST /auth/signup` → receive `devOtp` in Development\n" +
+                      "2. `POST /auth/verify-otp` → receive JWT token\n" +
+                      "3. Click **Authorize** above, paste the token\n\n" +
+                      "## Response format\n" +
+                      "Every response follows the same envelope:\n" +
+                      "```json\n{ \"success\": true, \"statusCode\": 200, \"message\": \"OK\", \"data\": { ... }, \"errors\": null }\n```",
+        Contact = new OpenApiContact
         {
-            Type = SecuritySchemeType.Http,
-            Scheme = "bearer",
-            BearerFormat = "JWT",
-            Description = "Enter JWT token"
-        });
-        c.AddSecurityRequirement(new OpenApiSecurityRequirement
-        {
-            {
-                new OpenApiSecurityScheme
-                {
-                    Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
-                },
-                Array.Empty<string>()
-            }
-        });
+            Name  = "Zogreo Institute",
+            Email = "dev@zogreo.ac.ke"
+        }
     });
-}
+
+    // JWT bearer auth
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name        = "Authorization",
+        Type        = SecuritySchemeType.Http,
+        Scheme      = "bearer",
+        BearerFormat = "JWT",
+        In          = ParameterLocation.Header,
+        Description = "Paste the JWT token from `POST /auth/verify-otp` or `POST /auth/login`.\n\nFormat: **Bearer {token}**"
+    });
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+            },
+            Array.Empty<string>()
+        }
+    });
+
+    // Include XML doc comments from the Web project
+    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    if (File.Exists(xmlPath)) c.IncludeXmlComments(xmlPath);
+
+    // Group endpoints by controller tag
+    c.TagActionsBy(api => [api.GroupName ?? api.ActionDescriptor.RouteValues["controller"] ?? "Other"]);
+    c.DocInclusionPredicate((_, _) => true);
+});
 
 // ── JWT Auth ──────────────────────────────────────────────────────────────────
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+    .AddJwtBearer(o =>
     {
-        options.TokenValidationParameters = new TokenValidationParameters
+        o.TokenValidationParameters = new TokenValidationParameters
         {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
+            ValidateIssuer           = true,
+            ValidateAudience         = true,
+            ValidateLifetime         = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = config["Jwt:Issuer"],
-            ValidAudience = config["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(
+            ValidIssuer              = config["Jwt:Issuer"],
+            ValidAudience            = config["Jwt:Audience"],
+            IssuerSigningKey         = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(config["Jwt:Key"]!))
         };
     });
 builder.Services.AddAuthorization();
 
-// ── EF Core / Postgres ────────────────────────────────────────────────────────
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(config.GetConnectionString("Postgres")));
-
-// ── Distributed Cache ─────────────────────────────────────────────────────────
-if (env.IsDevelopment())
-{
-    builder.Services.AddDistributedMemoryCache();
-}
-else
-{
-    builder.Services.AddStackExchangeRedisCache(options =>
-        options.Configuration = config.GetConnectionString("Redis"));
-}
-
-// ── Hangfire ──────────────────────────────────────────────────────────────────
-builder.Services.AddHangfire(hf => hf
-    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
-    .UseSimpleAssemblyNameTypeSerializer()
-    .UseRecommendedSerializerSettings()
-    .UsePostgreSqlStorage(c =>
-        c.UseNpgsqlConnection(config.GetConnectionString("Postgres"))));
-builder.Services.AddHangfireServer();
-
-// ── Tenancy ───────────────────────────────────────────────────────────────────
-builder.Services.AddScoped<ITenantProvider, TenantProvider>();
-
 // ── CORS (Dev open) ───────────────────────────────────────────────────────────
 if (env.IsDevelopment())
-{
     builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
         p.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()));
-}
 
-// ── TODO: register feature services (Auth, Catalog, Applications, Documents, Payments, Admin, Students, Notifications) ──
+// ── Tenancy / CurrentUser ─────────────────────────────────────────────────────
+builder.Services.AddScoped<ITenantProvider, HttpContextTenantProvider>();
+builder.Services.AddScoped<ICurrentUser, HttpContextCurrentUser>();
+
+// ── Application + Infrastructure layers ──────────────────────────────────────
+builder.Services.AddApplication(env.IsDevelopment());
+builder.Services.AddInfrastructure(config, env);
 
 var app = builder.Build();
 
-// ── Static file serving for uploads ──────────────────────────────────────────
-app.UseStaticFiles();
-
-// ── Error middleware (first to catch everything) ───────────────────────────────
+// ── Middleware pipeline ───────────────────────────────────────────────────────
+// Error handler must be first so it catches everything below
 app.UseMiddleware<ExceptionMiddleware>();
 
-// ── Swagger ───────────────────────────────────────────────────────────────────
+app.UseSwagger();
+app.UseSwaggerUI(c =>
+{
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Zogreo API v1");
+    c.RoutePrefix  = "swagger";           // http://localhost:5000/swagger
+    c.DocumentTitle = "Zogreo API";
+    c.DefaultModelsExpandDepth(-1);       // Collapse schema models by default
+    c.DisplayRequestDuration();           // Show request timing in UI
+});
+
 if (env.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Zogreo API v1"));
     app.UseCors();
     app.UseHangfireDashboard("/hangfire");
 }
 
-// ── Tenant middleware (after routing, before auth) ────────────────────────────
+app.UseStaticFiles();
 app.UseRouting();
-app.UseMiddleware<TenantMiddleware>();
-app.UseAuthentication();
+app.UseAuthentication();   // ← JWT decoded first, HttpContext.User is populated
 app.UseAuthorization();
+app.UseMiddleware<TenantMiddleware>(); // ← reads org/userId from the decoded JWT
 
 app.MapControllers();
 
-// ── Health ────────────────────────────────────────────────────────────────────
-app.MapGet("/health", () => Results.Ok(new { status = "healthy", ts = DateTimeOffset.UtcNow }));
+// Health check — manually envelope since it's a minimal-API endpoint (not a controller)
+app.MapGet("/health", () => Results.Ok(new
+{
+    success = true, statusCode = 200, message = "OK",
+    data = new { status = "healthy", ts = DateTimeOffset.UtcNow },
+    errors = (object?)null
+})).WithTags("Health").WithSummary("Health check");
 
-// ── Seed on startup ───────────────────────────────────────────────────────────
-// TODO: await SeedData.RunAsync(app.Services, config);
+// ── Seed database on startup ──────────────────────────────────────────────────
+await app.Services.InitialiseDatabaseAsync();
+
+// ── Hangfire recurring jobs ───────────────────────────────────────────────────
+RecurringJob.AddOrUpdate<PaymentSweepJob>(
+    "payment-sweep", j => j.RunAsync(), "*/5 * * * *");
+RecurringJob.AddOrUpdate<NotificationDispatchJob>(
+    "notification-dispatch", j => j.RunAsync(), "*/1 * * * *");
 
 app.Run();

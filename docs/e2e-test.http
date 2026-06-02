@@ -1,0 +1,164 @@
+### Zogreo Admissions API — End-to-end test script
+### Use with VS Code REST Client, JetBrains HTTP Client, or similar.
+### Replace {{base}} and token variables before running.
+
+@base = http://localhost:5000
+@adminEmail = admin@zogreo.ac.ke
+@adminPassword = Admin@1234
+
+# ── Step 1: Admin login ───────────────────────────────────────────────────────
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "{{adminEmail}}", "password": "{{adminPassword}}"}
+
+# → copy token into @adminToken below
+
+@adminToken = PASTE_ADMIN_JWT_HERE
+
+# ── Step 2: List programs (catalog) ──────────────────────────────────────────
+GET {{base}}/programs
+
+# ── Step 3: List intakes for program ─────────────────────────────────────────
+GET {{base}}/intakes?programId=PASTE_PROGRAM_ID
+
+# ── Step 4: Applicant signup ──────────────────────────────────────────────────
+POST {{base}}/auth/signup
+Content-Type: application/json
+
+{
+  "fullName": "Jane Wanjiru",
+  "email": "jane@example.com",
+  "phone": "0712345678",
+  "password": "Test@1234"
+}
+# → response contains devOtp in Development
+
+# ── Step 5: Verify OTP ────────────────────────────────────────────────────────
+POST {{base}}/auth/verify-otp
+Content-Type: application/json
+
+{"phone": "+254712345678", "code": "PASTE_DEV_OTP"}
+
+# → copy token into @applicantToken
+
+@applicantToken = PASTE_APPLICANT_JWT_HERE
+
+# ── Step 6: Create draft application ─────────────────────────────────────────
+POST {{base}}/applications
+Authorization: Bearer {{applicantToken}}
+Content-Type: application/json
+
+{"programId": "PASTE_PROGRAM_ID", "intakeId": "PASTE_INTAKE_ID"}
+
+# → copy applicationId
+
+@appId = PASTE_APPLICATION_ID
+
+# ── Step 7: Fill application steps ───────────────────────────────────────────
+PATCH {{base}}/applications/{{appId}}
+Authorization: Bearer {{applicantToken}}
+Content-Type: application/json
+
+{
+  "personalJson": "{\"dob\":\"2000-01-01\",\"gender\":\"Female\",\"nationality\":\"Kenyan\"}",
+  "educationHistoryJson": "{\"lastSchool\":\"Nairobi Girls High\",\"year\":2018,\"grade\":\"B+\"}",
+  "nextOfKinJson": "{\"name\":\"John Wanjiru\",\"relationship\":\"Father\",\"phone\":\"+254700000001\"}",
+  "howDidYouHear": "Social Media"
+}
+
+# ── Step 8: Try to submit (expect unpaid invoice response) ───────────────────
+POST {{base}}/applications/{{appId}}/submit
+Authorization: Bearer {{applicantToken}}
+
+# → returns UnpaidInvoiceInfo with invoiceId
+
+@appInvoiceId = PASTE_INVOICE_ID
+
+# ── Step 9: Initiate application fee payment ──────────────────────────────────
+POST {{base}}/payments/initiate
+Authorization: Bearer {{applicantToken}}
+Content-Type: application/json
+
+{"invoiceId": "{{appInvoiceId}}", "channel": "mpesa"}
+
+# → copy reference into @ref
+
+@ref = PASTE_PAYMENT_REFERENCE
+
+# ── Step 10: Simulate successful webhook (sign with your test secret) ─────────
+# Generate signature: HMAC-SHA512 of body with sk_test_...
+# Sample curl (replace SECRET and REFERENCE):
+#
+# PAYLOAD='{"event":"charge.success","data":{"reference":"REFERENCE","amount":50000,"fees":1500,"channel":"mobile_money","gateway_response":"Successful"}}'
+# SIG=$(echo -n "$PAYLOAD" | openssl dgst -sha512 -hmac "sk_test_YOUR_SECRET" | awk '{print $2}')
+# curl -s -X POST http://localhost:5000/webhooks/paystack \
+#   -H "Content-Type: application/json" \
+#   -H "x-paystack-signature: $SIG" \
+#   -d "$PAYLOAD"
+#
+# POST AGAIN with same payload → should still return 200 but NOT double-credit
+
+# ── Step 11: Check payment status ────────────────────────────────────────────
+GET {{base}}/payments/{{ref}}/status
+Authorization: Bearer {{applicantToken}}
+
+# ── Step 12: Application should now be Submitted ──────────────────────────────
+GET {{base}}/applications/{{appId}}
+Authorization: Bearer {{applicantToken}}
+
+# ── Step 13: Admin opens application → auto-moves to UnderReview ─────────────
+GET {{base}}/admin/applications/{{appId}}
+Authorization: Bearer {{adminToken}}
+
+# ── Step 14: Upload a document ────────────────────────────────────────────────
+# POST {{base}}/applications/{{appId}}/documents
+# Authorization: Bearer {{applicantToken}}
+# Content-Type: multipart/form-data; boundary=boundary
+# (Use Swagger UI or Postman for multipart uploads)
+
+# ── Step 15: Admin verifies document ─────────────────────────────────────────
+PATCH {{base}}/admin/documents/PASTE_DOC_ID
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{"status": "Verified", "reason": null}
+
+# ── Step 16: Admin makes offer ────────────────────────────────────────────────
+POST {{base}}/admin/applications/{{appId}}/offer
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{"conditions": "Subject to passing medicals.", "expiryDays": 14}
+
+# ── Step 17: Applicant views offer ───────────────────────────────────────────
+GET {{base}}/applications/{{appId}}/offer
+Authorization: Bearer {{applicantToken}}
+
+# ── Step 18: Pay acceptance fee → then accept offer ───────────────────────────
+# (initiate + webhook for FeeCode=Acceptance invoice, then:)
+POST {{base}}/applications/{{appId}}/offer/accept
+Authorization: Bearer {{applicantToken}}
+
+# ── Step 19: Pay admission + technology fees ──────────────────────────────────
+# Initiate + webhook for both invoices → application moves to FeesPaid
+
+# ── Step 20: Pay medical fee + upload MedicalReport doc + admin verifies it ───
+# After both: application moves to MedicalsCleared → Student created → Enrolled
+
+# ── Step 21: Check admin payment reconciliation ───────────────────────────────
+GET {{base}}/admin/payments
+Authorization: Bearer {{adminToken}}
+
+# → technology fee shows in TechnologyFee column, school fees in AmountNetToSchool
+
+# ── Step 22: Check enrolled students ─────────────────────────────────────────
+GET {{base}}/admin/students
+Authorization: Bearer {{adminToken}}
+
+# ── Step 23: Check audit log ─────────────────────────────────────────────────
+GET {{base}}/admin/audit
+Authorization: Bearer {{adminToken}}
+
+# ── Step 24: Health check ─────────────────────────────────────────────────────
+GET {{base}}/health
