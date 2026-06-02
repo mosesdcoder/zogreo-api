@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git init *)",
+      "Bash(dotnet new *)",
+      "Bash(dotnet sln *)",
+      "Read(//usr/local/share/dotnet/**)",
+      "Read(//Users/mac/.dotnet/**)",
+      "Read(//opt/homebrew/bin/**)",
+      "Bash(find /usr /opt /home -name \"dotnet\" -type f 2>/dev/null | head -5; ls /usr/local/bin/ | grep -i dotnet 2>/dev/null)",
+      "Bash(cp /Users/mac/Downloads/CLAUDE.md /Users/mac/zogreo_institute/CLAUDE.md && touch /Users/mac/zogreo_institute/docs/SPEC.md /Users/mac/zogreo_institute/docs/PHASE1-BUILD-SPEC.md)",
+      "Bash(/usr/local/share/dotnet/x64/dotnet build *)"
+    ]
+  }
+}
