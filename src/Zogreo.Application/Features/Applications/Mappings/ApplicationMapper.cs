@@ -8,7 +8,8 @@ internal static class ApplicationMapper
     internal static ApplicationSummaryDto ToSummary(
         Domain.Entities.Application app, string programName, string intakeName) =>
         new(app.Id, app.ProgramId, programName, app.IntakeId, intakeName,
-            app.Status.ToString(), WhatNext(app.Status), app.CreatedAt);
+            app.Status.ToString(), WhatNext(app.Status), app.CreatedAt,
+            app.PersonalJson, app.EducationHistoryJson, app.NextOfKinJson, app.HowDidYouHear);
 
     internal static string? WhatNext(ApplicationStatus s) => s switch
     {

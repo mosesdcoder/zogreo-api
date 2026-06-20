@@ -2,7 +2,9 @@ namespace Zogreo.Application.Features.Applications.DTOs;
 
 public record ApplicationSummaryDto(
     Guid Id, Guid ProgramId, string ProgramName, Guid IntakeId, string IntakeName,
-    string Status, string? WhatNext, DateTimeOffset CreatedAt);
+    string Status, string? WhatNext, DateTimeOffset CreatedAt,
+    // Saved wizard progress — included so the frontend can restore form state without a second fetch
+    string? PersonalJson, string? EducationHistoryJson, string? NextOfKinJson, string? HowDidYouHear);
 
 public record ApplicationDetailDto(
     Guid Id, Guid ProgramId, string ProgramName, Guid IntakeId, string IntakeName,

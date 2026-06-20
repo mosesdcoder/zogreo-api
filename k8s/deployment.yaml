@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zegreo-api
+  namespace: zegreo-api
+  labels:
+    app: zegreo-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zegreo-api
+  template:
+    metadata:
+      labels:
+        app: zegreo-api
+    spec:
+      imagePullSecrets:
+        - name: do-registry-secret
+      containers:
+        - name: zegreo-api
+          image: registry.digitalocean.com/zogreolabs/zegreo-api:api-prod
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Production"
+            - name: ConnectionStrings__Postgres
+              valueFrom:
+                secretKeyRef:
+                  name: zegreo-api-secrets
+                  key: ConnectionStrings__Postgres
+            - name: ConnectionStrings__Redis
+              valueFrom:
+                secretKeyRef:
+                  name: zegreo-api-secrets
+                  key: ConnectionStrings__Redis
+            - name: Jwt__Key
+              valueFrom:
+                secretKeyRef:
+                  name: zegreo-api-secrets
+                  key: Jwt__Key
+            - name: Paystack__SecretKey
+              valueFrom:
+                secretKeyRef:
+                  name: zegreo-api-secrets
+                  key: Paystack__SecretKey
+            - name: Paystack__PublicKey
+              valueFrom:
+                secretKeyRef:
+                  name: zegreo-api-secrets
+                  key: Paystack__PublicKey
+            - name: Paystack__SchoolSubaccountCode
+              valueFrom:
+                secretKeyRef:
+                  name: zegreo-api-secrets
+                  key: Paystack__SchoolSubaccountCode
+            - name: AfricasTalking__ApiKey
+              valueFrom:
+                secretKeyRef:
+                  name: zegreo-api-secrets
+                  key: AfricasTalking__ApiKey
+            - name: AfricasTalking__Username
+              valueFrom:
+                secretKeyRef:
+                  name: zegreo-api-secrets
+                  key: AfricasTalking__Username
+            - name: Email__SmtpPass
+              valueFrom:
+                secretKeyRef:
+                  name: zegreo-api-secrets
+                  key: Email__SmtpPass
+            - name: FileStorage__BaseUrl
+              valueFrom:
+                secretKeyRef:
+                  name: zegreo-api-secrets
+                  key: FileStorage__BaseUrl
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 30

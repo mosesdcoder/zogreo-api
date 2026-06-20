@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Zogreo.Application.Features.Payments.Commands;
 
-public record InitiatePaymentCommand(Guid InvoiceId, string Channel) : ICommand<PaymentInitDto>;
+public record InitiatePaymentCommand(Guid InvoiceId, string Channel, string? MobileNumber = null) : ICommand<PaymentInitDto>;
 
 public class InitiatePaymentCommandHandler(
     IApplicationDbContext db,
@@ -43,13 +43,15 @@ public class InitiatePaymentCommandHandler(
         var isTechFee = invoice.FeeCode == FeeCode.Technology;
         var subaccount = isTechFee ? null : settings.SchoolSubaccountCode;
 
+        var isMpesa = cmd.Channel.ToLower() == "mpesa";
         var paystackReq = new PaystackInitRequest(
             Email: invoice.Application.User.Email,
             Amount: (long)(invoice.Amount * 100),
             Reference: reference,
-            Channels: cmd.Channel.ToLower() == "mpesa" ? ["mobile_money"] : ["card"],
+            Channels: isMpesa ? ["mobile_money"] : ["card"],
             Subaccount: subaccount,
-            Bearer: subaccount != null ? "subaccount" : null);
+            Bearer: subaccount != null ? "subaccount" : null,
+            MobileNumber: isMpesa ? cmd.MobileNumber : null);
 
         var result = await paystack.InitializeTransactionAsync(paystackReq);
 

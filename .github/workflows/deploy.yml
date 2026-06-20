@@ -1,0 +1,81 @@
+name: "[development] Deploy Zogreo API"
+
+on:
+  push:
+    branches: [qa]
+  workflow_dispatch:
+
+jobs:
+  build_deploy:
+    name: Build & push image
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.set_tag.outputs.tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set image tag
+        id: set_tag
+        run: echo "tag=api-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Login to DO Container Registry
+        run: doctl registry login --expiry-seconds 600
+
+      - name: Build image
+        run: |
+          docker build \
+            -t registry.digitalocean.com/zogreolabs/zegreo-api:${{ steps.set_tag.outputs.tag }} \
+            -t registry.digitalocean.com/zogreolabs/zegreo-api:api-prod \
+            .
+
+      - name: Push image
+        run: |
+          docker push registry.digitalocean.com/zogreolabs/zegreo-api:${{ steps.set_tag.outputs.tag }}
+          docker push registry.digitalocean.com/zogreolabs/zegreo-api:api-prod
+
+  redeploy:
+    name: Deploy to k3s via SSH
+    runs-on: ubuntu-latest
+    needs: build_deploy
+    environment: development
+
+    env:
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Sync k8s manifests to server
+        run: |
+          ssh -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" "mkdir -p /tmp/zegreo-api-k8s"
+          rsync -avz -e "ssh -o StrictHostKeyChecking=no" \
+            --include='*/' \
+            --include='*.yaml' \
+            --exclude='*' \
+            k8s/ "$SSH_USER@$SSH_HOST:/tmp/zegreo-api-k8s/"
+
+      - name: Apply manifests and rollout
+        run: |
+          ssh -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" "
+            export KUBECONFIG=/etc/rancher/k3s/k3s.yaml &&
+            kubectl apply -f /tmp/zegreo-api-k8s/ &&
+            kubectl rollout restart deploy zegreo-api -n zegreo-api &&
+            kubectl rollout status deploy zegreo-api -n zegreo-api --timeout=120s
+          "

@@ -6,3 +6,4 @@ uploads/
 *.env
 appsettings.*.local.json
 secrets.json
+k8s/secrets.yaml

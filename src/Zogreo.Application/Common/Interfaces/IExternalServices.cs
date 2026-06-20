@@ -22,7 +22,7 @@ public interface IPaystackClient
 
 public record PaystackInitRequest(
     string Email, long Amount, string Reference,
-    string[] Channels, string? Subaccount, string? Bearer);
+    string[] Channels, string? Subaccount, string? Bearer, string? MobileNumber = null);
 
 public record PaystackInitResult(bool Status, string AuthorizationUrl, string Reference, string AccessCode);
 public record PaystackVerifyResult(bool Status, string PaystackRef, string GatewayResponse, long Amount, long Fees, string Channel);

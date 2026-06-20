@@ -53,7 +53,10 @@ public static class DependencyInjection
         services.AddScoped<IOtpService, OtpService>();
 
         // ── Payments ──────────────────────────────────────────────────────────
-        PaystackHttpClient.ConfigureHttpClient(services, config);
+        if (config["Paystack:Simulate"] == "true")
+            services.AddScoped<IPaystackClient, SimulatedPaystackClient>();
+        else
+            PaystackHttpClient.ConfigureHttpClient(services, config);
         services.AddScoped<IPaymentSettings, PaymentSettings>();
 
         // ── Notifications ─────────────────────────────────────────────────────

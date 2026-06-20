@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Zogreo.Application.Common.Mediator;
 using Zogreo.Application.Features.Payments.Commands;
 using Zogreo.Application.Features.Payments.Queries;
+using Microsoft.Extensions.Hosting;
 
 namespace Zogreo.Api.Controllers;
 
@@ -15,6 +16,14 @@ namespace Zogreo.Api.Controllers;
 [Produces("application/json")]
 public class PaymentsController(ISender sender) : ControllerBase
 {
+    /// <summary>List all confirmed payments for an application (payment history).</summary>
+    [HttpGet("applications/{id:guid}/payments")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetPayments(Guid id, CancellationToken ct)
+        => Ok(await sender.Send(new GetApplicationPaymentsQuery(id), ct));
+
     /// <summary>List all invoices for an application.</summary>
     [HttpGet("applications/{id:guid}/invoices")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -30,7 +39,7 @@ public class PaymentsController(ISender sender) : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Initiate(InitiatePaymentRequest req, CancellationToken ct)
-        => Ok(await sender.Send(new InitiatePaymentCommand(req.InvoiceId, req.Channel), ct));
+        => Ok(await sender.Send(new InitiatePaymentCommand(req.InvoiceId, req.Channel, req.ResolvedPhone), ct));
 
     /// <summary>Check payment status (re-verifies with Paystack if still pending).</summary>
     [HttpGet("payments/{reference}/status")]
@@ -40,7 +49,54 @@ public class PaymentsController(ISender sender) : ControllerBase
         => Ok(await sender.Send(new GetPaymentStatusQuery(reference), ct));
 }
 
-public record InitiatePaymentRequest(Guid InvoiceId, string Channel);
+public record InitiatePaymentRequest(Guid InvoiceId, string Channel, string? MobileNumber = null, string? Phone = null)
+{
+    // Accept either "mobileNumber" or "phone" from the frontend
+    public string? ResolvedPhone => MobileNumber ?? Phone;
+}
+
+/// <summary>
+/// Dev-only helpers — all endpoints return 404 in Production.
+/// </summary>
+[ApiController]
+[AllowAnonymous]
+public class DevPaymentsController(ISender sender, IHostEnvironment env) : ControllerBase
+{
+    /// <summary>
+    /// Immediately marks a Pending payment as Successful and advances application state.
+    /// Use this during development to skip the Paystack checkout flow.
+    /// Returns 404 in Production.
+    /// </summary>
+    [HttpPost("dev/payments/{reference}/simulate")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Simulate(string reference, CancellationToken ct)
+    {
+        if (!env.IsDevelopment())
+            return NotFound();
+
+        var result = await sender.Send(new SimulatePaymentCommand(reference), ct);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Creates a Payment row AND immediately confirms it in one step — no Paystack involved.
+    /// Use this from the frontend in simulate mode instead of calling /payments/initiate.
+    /// Returns 404 in Production.
+    /// </summary>
+    [HttpPost("dev/payments/invoices/{invoiceId:guid}/pay")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> SimulatePay(Guid invoiceId, CancellationToken ct)
+    {
+        if (!env.IsDevelopment())
+            return NotFound();
+
+        var result = await sender.Send(new SimulateInvoicePayCommand(invoiceId), ct);
+        return Ok(result);
+    }
+}
 
 /// <summary>Paystack webhook receiver (machine-to-machine, no auth)</summary>
 [ApiController]

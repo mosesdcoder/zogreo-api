@@ -19,6 +19,7 @@ public class PaystackHttpClient(HttpClient http) : IPaystackClient
             channels = req.Channels,
             subaccount = req.Subaccount,
             bearer = req.Bearer,
+            mobile_number = req.MobileNumber,   // required for M-Pesa STK push
         };
         var body = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
         var resp = await http.PostAsync("transaction/initialize", body);

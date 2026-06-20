@@ -9,7 +9,27 @@
       "Read(//opt/homebrew/bin/**)",
       "Bash(find /usr /opt /home -name \"dotnet\" -type f 2>/dev/null | head -5; ls /usr/local/bin/ | grep -i dotnet 2>/dev/null)",
       "Bash(cp /Users/mac/Downloads/CLAUDE.md /Users/mac/zogreo_institute/CLAUDE.md && touch /Users/mac/zogreo_institute/docs/SPEC.md /Users/mac/zogreo_institute/docs/PHASE1-BUILD-SPEC.md)",
-      "Bash(/usr/local/share/dotnet/x64/dotnet build *)"
+      "Bash(/usr/local/share/dotnet/x64/dotnet build *)",
+      "Bash(mv /Users/mac/zogreo_institute/src/Zogreo.Api/Data/Migrations/Migrations/* /Users/mac/zogreo_institute/src/Zogreo.Api/Data/Migrations/ && rmdir /Users/mac/zogreo_institute/src/Zogreo.Api/Data/Migrations/Migrations && ls /Users/mac/zogreo_institute/src/Zogreo.Api/Data/Migrations/)",
+      "Read(//private/tmp/**)",
+      "Bash(unzip -o /Users/mac/Downloads/files.zip -d files_extract)",
+      "Bash(cp /tmp/files_extract/ARCHITECTURE.md /Users/mac/zogreo_institute/ARCHITECTURE.md && echo \"done\")",
+      "Bash(pg_isready)",
+      "Bash(psql -U postgres -c '\\\\l')",
+      "Bash(which psql *)",
+      "Bash(brew list *)",
+      "Bash(brew services *)",
+      "Bash(nc -z localhost 5432)",
+      "Bash(psql -c '\\\\du')",
+      "Bash(/opt/homebrew/opt/postgresql@16/bin/psql -c '\\\\du')",
+      "Bash(/opt/homebrew/bin/psql -c '\\\\du')",
+      "Bash(curl -s http://localhost:5000/health)",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s http://localhost:5000/programs)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(f' [{p[\\\\\"data\\\\\"][0] if False else i}] {p}'\\) for i,p in enumerate\\(d['data'][:3]\\)]\")",
+      "Bash(curl -s http://localhost:5000/intakes?programId=006e168c-77c1-44a4-b0d4-f05e6d3c3b0a)",
+      "Bash(git add *)",
+      "Bash(git rm *)"
     ]
   }
 }
