@@ -25,7 +25,7 @@ spec:
             - containerPort: 8080
           env:
             - name: ASPNETCORE_ENVIRONMENT
-              value: "Production"
+              value: "Development"
             - name: ConnectionStrings__Postgres
               valueFrom:
                 secretKeyRef:

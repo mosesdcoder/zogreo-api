@@ -61,6 +61,7 @@ public class SignupCommandHandler(
         await outbox.QueueSmsAsync(user.Id, phone, "otp",
             $"Your Zogreo verification code is {code}. Valid for 10 minutes.");
 
-        return new SignupResult("OTP sent to your phone.", envInfo.IsDevelopment ? code : null);
+        var exposeOtp = envInfo.IsDevelopment || envInfo.ExposeOtp;
+        return new SignupResult("OTP sent to your phone.", exposeOtp ? code : null);
     }
 }
