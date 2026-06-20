@@ -101,10 +101,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 builder.Services.AddAuthorization();
 
-// ── CORS (Dev open) ───────────────────────────────────────────────────────────
-if (env.IsDevelopment())
-    builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
-        p.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()));
+// ── CORS ──────────────────────────────────────────────────────────────────────
+builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
+    p.WithOrigins("https://zogreo.online", "https://www.zogreo.online")
+     .AllowAnyMethod()
+     .AllowAnyHeader()
+     .AllowCredentials()));
 
 // ── Tenancy / CurrentUser ─────────────────────────────────────────────────────
 builder.Services.AddScoped<ITenantProvider, HttpContextTenantProvider>();
@@ -136,9 +138,10 @@ app.UseSwaggerUI(c =>
     c.DisplayRequestDuration();           // Show request timing in UI
 });
 
+app.UseCors();
+
 if (env.IsDevelopment())
 {
-    app.UseCors();
     app.UseHangfireDashboard("/hangfire");
 }
 
