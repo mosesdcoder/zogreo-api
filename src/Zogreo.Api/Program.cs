@@ -142,6 +142,8 @@ if (env.IsDevelopment())
     app.UseHangfireDashboard("/hangfire");
 }
 
+app.UseHangfireServer();
+
 app.UseStaticFiles();
 app.UseRouting();
 app.UseAuthentication();   // ← JWT decoded first, HttpContext.User is populated
@@ -162,9 +164,16 @@ app.MapGet("/health", () => Results.Ok(new
 await app.Services.InitialiseDatabaseAsync();
 
 // ── Hangfire recurring jobs ───────────────────────────────────────────────────
-RecurringJob.AddOrUpdate<PaymentSweepJob>(
-    "payment-sweep", j => j.RunAsync(), "*/5 * * * *");
-RecurringJob.AddOrUpdate<NotificationDispatchJob>(
-    "notification-dispatch", j => j.RunAsync(), "*/1 * * * *");
+try
+{
+    RecurringJob.AddOrUpdate<PaymentSweepJob>(
+        "payment-sweep", j => j.RunAsync(), "*/5 * * * *");
+    RecurringJob.AddOrUpdate<NotificationDispatchJob>(
+        "notification-dispatch", j => j.RunAsync(), "*/1 * * * *");
+}
+catch (Exception ex)
+{
+    app.Logger.LogWarning(ex, "Could not register Hangfire recurring jobs on startup — will retry on next deploy");
+}
 
 app.Run();
