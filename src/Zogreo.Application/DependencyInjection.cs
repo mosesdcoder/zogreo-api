@@ -1,5 +1,6 @@
 using System.Reflection;
 using FluentValidation;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Zogreo.Application.Common.Interfaces;
 using Zogreo.Application.Common.Mediator;
@@ -8,7 +9,7 @@ namespace Zogreo.Application;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddApplication(this IServiceCollection services, bool isDevelopment)
+    public static IServiceCollection AddApplication(this IServiceCollection services, bool isDevelopment, IConfiguration config)
     {
         var assembly = Assembly.GetExecutingAssembly();
 
@@ -16,7 +17,8 @@ public static class DependencyInjection
         services.AddScoped<ISender, Sender>();
 
         // Register IEnvironmentInfo
-        services.AddSingleton<IEnvironmentInfo>(new EnvironmentInfo(isDevelopment));
+        var exposeOtp = config.GetValue<bool>("App:ExposeOtp");
+        services.AddSingleton<IEnvironmentInfo>(new EnvironmentInfo(isDevelopment, exposeOtp));
 
         // Register all command and query handlers by scanning for closed generic interfaces
         var handlerTypes = assembly.GetTypes()
@@ -36,5 +38,5 @@ public static class DependencyInjection
         return services;
     }
 
-    private record EnvironmentInfo(bool IsDevelopment) : IEnvironmentInfo;
+    private record EnvironmentInfo(bool IsDevelopment, bool ExposeOtp) : IEnvironmentInfo;
 }

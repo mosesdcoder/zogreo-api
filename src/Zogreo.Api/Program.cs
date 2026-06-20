@@ -113,7 +113,7 @@ builder.Services.AddScoped<ITenantProvider, HttpContextTenantProvider>();
 builder.Services.AddScoped<ICurrentUser, HttpContextCurrentUser>();
 
 // ── Application + Infrastructure layers ──────────────────────────────────────
-builder.Services.AddApplication(env.IsDevelopment());
+builder.Services.AddApplication(env.IsDevelopment(), config);
 builder.Services.AddInfrastructure(config, env);
 
 var app = builder.Build();
