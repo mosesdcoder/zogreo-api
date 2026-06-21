@@ -41,6 +41,9 @@ public class ApplicationDbContextInitialiser(
         var admin = await db.Users.IgnoreQueryFilters()
             .FirstOrDefaultAsync(u => u.OrganizationId == org.Id && u.Email == adminEmail);
 
+        var hasher = new PasswordHasher<User>();
+        var adminPassword = config["Seed:AdminPassword"] ?? "Admin@1234";
+
         if (admin == null)
         {
             admin = new User
@@ -53,11 +56,16 @@ public class ApplicationDbContextInitialiser(
                 Role = Role.SuperAdmin,
                 Active = true
             };
-            admin.PasswordHash = new PasswordHasher<User>()
-                .HashPassword(admin, config["Seed:AdminPassword"] ?? "Admin@1234");
+            admin.PasswordHash = hasher.HashPassword(admin, adminPassword);
             db.Users.Add(admin);
-            await db.SaveChangesAsync();
         }
+        else
+        {
+            // Always keep admin password in sync with config so changing the secret
+            // takes effect on the next pod restart without manual DB intervention.
+            admin.PasswordHash = hasher.HashPassword(admin, adminPassword);
+        }
+        await db.SaveChangesAsync();
 
         var now = DateTimeOffset.UtcNow;
         var existingPrograms = await db.Programs.IgnoreQueryFilters()
