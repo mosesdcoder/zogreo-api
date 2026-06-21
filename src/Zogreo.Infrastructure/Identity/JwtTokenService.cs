@@ -23,6 +23,7 @@ public class JwtTokenService(IConfiguration config) : IJwtTokenService
             new Claim("org", user.OrganizationId.ToString()),
             new Claim(ClaimTypes.Role, user.Role.ToString()),
             new Claim(ClaimTypes.Email, user.Email),
+            new Claim("phoneVerified", user.PhoneVerified ? "true" : "false"),
         };
 
         var token = new JwtSecurityToken(
