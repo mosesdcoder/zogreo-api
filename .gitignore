@@ -7,3 +7,4 @@ uploads/
 appsettings.*.local.json
 secrets.json
 k8s/secrets.yaml
+k8s/moodle/secrets.yaml

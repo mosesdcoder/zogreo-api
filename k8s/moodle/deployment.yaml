@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: moodle
+  namespace: moodle
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: moodle
+  template:
+    metadata:
+      labels:
+        app: moodle
+    spec:
+      initContainers:
+        # Wait for Postgres to be ready before Moodle starts
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z moodle-postgres 5432; do
+                echo "Waiting for postgres..."; sleep 3;
+              done
+      containers:
+        - name: moodle
+          image: bitnami/moodle:4.3
+          ports:
+            - containerPort: 8080
+          env:
+            - name: MOODLE_DATABASE_TYPE
+              value: "pgsql"
+            - name: MOODLE_DATABASE_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: moodle-secrets
+                  key: MOODLE_DATABASE_HOST
+            - name: MOODLE_DATABASE_PORT_NUMBER
+              valueFrom:
+                secretKeyRef:
+                  name: moodle-secrets
+                  key: MOODLE_DATABASE_PORT_NUMBER
+            - name: MOODLE_DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: moodle-secrets
+                  key: MOODLE_DATABASE_NAME
+            - name: MOODLE_DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: moodle-secrets
+                  key: MOODLE_DATABASE_USER
+            - name: MOODLE_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: moodle-secrets
+                  key: MOODLE_DATABASE_PASSWORD
+            - name: MOODLE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: moodle-secrets
+                  key: MOODLE_USERNAME
+            - name: MOODLE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: moodle-secrets
+                  key: MOODLE_PASSWORD
+            - name: MOODLE_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: moodle-secrets
+                  key: MOODLE_EMAIL
+            - name: MOODLE_SITE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: moodle-secrets
+                  key: MOODLE_SITE_NAME
+            - name: MOODLE_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: moodle-secrets
+                  key: MOODLE_HOST
+            - name: MOODLE_REVERSEPROXY
+              value: "yes"
+            - name: MOODLE_SSLPROXY
+              value: "yes"
+            - name: BITNAMI_DEBUG
+              value: "false"
+          volumeMounts:
+            - name: moodle-data
+              mountPath: /bitnami/moodle
+            - name: moodledata
+              mountPath: /bitnami/moodledata
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          readinessProbe:
+            httpGet:
+              path: /login/index.php
+              port: 8080
+            initialDelaySeconds: 120
+            periodSeconds: 20
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /login/index.php
+              port: 8080
+            initialDelaySeconds: 180
+            periodSeconds: 30
+            failureThreshold: 5
+      volumes:
+        - name: moodle-data
+          persistentVolumeClaim:
+            claimName: moodle-data-pvc
+        - name: moodledata
+          emptyDir: {}
