@@ -19,6 +19,9 @@ public interface IApplicationDbContext
     DbSet<Student> Students { get; }
     DbSet<AuditLog> AuditLogs { get; }
     DbSet<Notification> Notifications { get; }
+    DbSet<TimetableEntry> TimetableEntries { get; }
+    DbSet<AttendanceRecord> AttendanceRecords { get; }
+    DbSet<MoodleUser> MoodleUsers { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

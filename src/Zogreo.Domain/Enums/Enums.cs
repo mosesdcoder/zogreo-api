@@ -19,6 +19,8 @@ public enum DocumentType
 
 public enum OfferStatus { Issued, Accepted, Declined, Expired }
 
+public enum AttendanceStatus { Present, Absent, Late }
+
 public enum ProgramLevel { Certificate, Diploma, AdvancedDiploma, BibleCollege }
 
 public enum DeliveryMode { Online, OnCampus, Blended }

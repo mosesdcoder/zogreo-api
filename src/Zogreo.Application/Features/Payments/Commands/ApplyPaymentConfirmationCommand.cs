@@ -14,7 +14,8 @@ public class ApplyPaymentConfirmationCommandHandler(
     IApplicationDbContext db,
     ITenantProvider tenant,
     IPaystackClient paystack,
-    INotificationOutbox outbox) : ICommandHandler<ApplyPaymentConfirmationCommand, PaymentStatusDto?>
+    INotificationOutbox outbox,
+    IMoodleProvisioningTrigger moodleTrigger) : ICommandHandler<ApplyPaymentConfirmationCommand, PaymentStatusDto?>
 {
     public async Task<PaymentStatusDto?> Handle(ApplyPaymentConfirmationCommand cmd, CancellationToken ct)
     {
@@ -145,6 +146,10 @@ public class ApplyPaymentConfirmationCommandHandler(
         });
         app.Enrol();
         await db.SaveChangesAsync(ct);
+
+        // Provision the student in Moodle (fire-and-forget via background trigger)
+        var student = await db.Students.IgnoreQueryFilters().FirstAsync(s => s.ApplicationId == app.Id, ct);
+        await moodleTrigger.TriggerAsync(student.Id, ct);
 
         var user = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == app.UserId, ct);
         if (user != null)

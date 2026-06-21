@@ -19,7 +19,8 @@ public record SimulatePaymentCommand(string Reference) : ICommand<PaymentStatusD
 public class SimulatePaymentCommandHandler(
     IApplicationDbContext db,
     ITenantProvider tenant,
-    INotificationOutbox outbox) : ICommandHandler<SimulatePaymentCommand, PaymentStatusDto>
+    INotificationOutbox outbox,
+    IMoodleProvisioningTrigger moodleTrigger) : ICommandHandler<SimulatePaymentCommand, PaymentStatusDto>
 {
     public async Task<PaymentStatusDto> Handle(SimulatePaymentCommand cmd, CancellationToken ct)
     {
@@ -149,6 +150,9 @@ public class SimulatePaymentCommandHandler(
         });
         app.Enrol();
         await db.SaveChangesAsync(ct);
+
+        var student = await db.Students.IgnoreQueryFilters().FirstAsync(s => s.ApplicationId == app.Id, ct);
+        await moodleTrigger.TriggerAsync(student.Id, ct);
 
         var user = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == app.UserId, ct);
         if (user != null)

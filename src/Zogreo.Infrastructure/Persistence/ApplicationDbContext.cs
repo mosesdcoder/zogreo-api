@@ -22,6 +22,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Student> Students => Set<Student>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<TimetableEntry> TimetableEntries => Set<TimetableEntry>();
+    public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
+    public DbSet<MoodleUser> MoodleUsers => Set<MoodleUser>();
 
     protected override void OnModelCreating(ModelBuilder m)
     {
@@ -80,5 +83,33 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         // AuditLog
         m.Entity<AuditLog>().HasIndex(a => new { a.OrganizationId, a.At });
+
+        // LMS — TimetableEntry
+        m.Entity<TimetableEntry>().HasQueryFilter(e => e.OrganizationId == tenant.OrganizationId);
+        m.Entity<TimetableEntry>()
+            .HasOne(t => t.Program).WithMany().HasForeignKey(t => t.ProgramId).OnDelete(DeleteBehavior.Restrict);
+        m.Entity<TimetableEntry>()
+            .HasOne(t => t.Intake).WithMany().HasForeignKey(t => t.IntakeId).OnDelete(DeleteBehavior.Restrict);
+
+        // LMS — AttendanceRecord
+        m.Entity<AttendanceRecord>().HasQueryFilter(e => e.OrganizationId == tenant.OrganizationId);
+        m.Entity<AttendanceRecord>()
+            .HasIndex(a => new { a.TimetableEntryId, a.StudentId, a.Date }).IsUnique();
+        m.Entity<AttendanceRecord>()
+            .HasOne(a => a.Student).WithMany().HasForeignKey(a => a.StudentId).OnDelete(DeleteBehavior.Restrict);
+        m.Entity<AttendanceRecord>()
+            .HasOne(a => a.TimetableEntry).WithMany(t => t.AttendanceRecords)
+            .HasForeignKey(a => a.TimetableEntryId).OnDelete(DeleteBehavior.Cascade);
+        m.Entity<AttendanceRecord>()
+            .HasOne(a => a.MarkedBy).WithMany().HasForeignKey(a => a.MarkedByUserId).OnDelete(DeleteBehavior.Restrict);
+
+        // LMS — MoodleUser
+        m.Entity<MoodleUser>().HasQueryFilter(e => e.OrganizationId == tenant.OrganizationId);
+        m.Entity<MoodleUser>().HasIndex(mu => mu.StudentId).IsUnique();
+        m.Entity<MoodleUser>().HasIndex(mu => mu.MoodleUsername).IsUnique();
+        m.Entity<MoodleUser>()
+            .HasOne(mu => mu.Student).WithMany().HasForeignKey(mu => mu.StudentId).OnDelete(DeleteBehavior.Restrict);
+        m.Entity<MoodleUser>()
+            .HasOne(mu => mu.User).WithMany().HasForeignKey(mu => mu.UserId).OnDelete(DeleteBehavior.Restrict);
     }
 }

@@ -9,6 +9,7 @@ using Zogreo.Infrastructure.Documents;
 using Zogreo.Infrastructure.Files;
 using Zogreo.Infrastructure.Identity;
 using Zogreo.Infrastructure.Jobs;
+using Zogreo.Infrastructure.Moodle;
 using Zogreo.Infrastructure.Notifications;
 using Zogreo.Infrastructure.Payments;
 using Zogreo.Infrastructure.Persistence;
@@ -71,6 +72,15 @@ public static class DependencyInjection
 
         // ── Jobs ──────────────────────────────────────────────────────────────
         services.AddScoped<PaymentSweepJob>();
+
+        // ── Moodle ────────────────────────────────────────────────────────────
+        var moodleBase = config["Moodle:BaseUrl"];
+        if (!string.IsNullOrWhiteSpace(moodleBase))
+            services.AddHttpClient<IMoodleClient, MoodleClient>(c => c.BaseAddress = new Uri(moodleBase));
+        else
+            services.AddScoped<IMoodleClient, NullMoodleClient>();
+        services.AddScoped<MoodleProvisioningService>();
+        services.AddScoped<IMoodleProvisioningTrigger, HangfireMoodleProvisioningTrigger>();
 
         return services;
     }
