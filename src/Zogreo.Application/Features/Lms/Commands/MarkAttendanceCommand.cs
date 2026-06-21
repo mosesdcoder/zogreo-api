@@ -44,7 +44,7 @@ public class MarkAttendanceCommandHandler(
                     Date              = cmd.Date,
                     Status            = item.Status,
                     Note              = item.Note,
-                    MarkedByUserId    = tenant.UserId,
+                    MarkedByUserId    = tenant.UserId ?? Guid.Empty,
                 });
             }
             count++;
