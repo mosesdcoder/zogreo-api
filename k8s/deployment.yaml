@@ -76,6 +76,16 @@ spec:
                 secretKeyRef:
                   name: zegreo-api-secrets
                   key: FileStorage__BaseUrl
+            - name: Moodle__BaseUrl
+              valueFrom:
+                secretKeyRef:
+                  name: zegreo-api-secrets
+                  key: Moodle__BaseUrl
+            - name: Moodle__Token
+              valueFrom:
+                secretKeyRef:
+                  name: zegreo-api-secrets
+                  key: Moodle__Token
           resources:
             requests:
               cpu: "100m"

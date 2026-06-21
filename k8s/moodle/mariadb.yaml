@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: moodle-mariadb-pvc
+  namespace: moodle
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: moodle-mariadb
+  namespace: moodle
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: moodle-mariadb
+  template:
+    metadata:
+      labels:
+        app: moodle-mariadb
+    spec:
+      containers:
+        - name: mariadb
+          image: mariadb:10.11
+          ports:
+            - containerPort: 3306
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: moodle-secrets
+                  key: MYSQL_ROOT_PASSWORD
+            - name: MYSQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: moodle-secrets
+                  key: MOODLE_DB_NAME
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: moodle-secrets
+                  key: MOODLE_DB_USER
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: moodle-secrets
+                  key: MOODLE_DB_PASSWORD
+          volumeMounts:
+            - name: mariadb-data
+              mountPath: /var/lib/mysql
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "mysqladmin ping -h localhost -u root -p$MYSQL_ROOT_PASSWORD"
+            initialDelaySeconds: 20
+            periodSeconds: 10
+      volumes:
+        - name: mariadb-data
+          persistentVolumeClaim:
+            claimName: moodle-mariadb-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: moodle-mariadb
+  namespace: moodle
+spec:
+  selector:
+    app: moodle-mariadb
+  ports:
+    - port: 3306
+      targetPort: 3306
