@@ -2,7 +2,7 @@ name: "[development] Deploy Zogreo API"
 
 on:
   push:
-    branches: [qa]
+    branches: [dev]
   workflow_dispatch:
 
 jobs:
@@ -77,5 +77,5 @@ jobs:
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml &&
             kubectl apply -f /tmp/zegreo-api-k8s/ &&
             kubectl rollout restart deploy zegreo-api -n zegreo-api &&
-            kubectl rollout status deploy zegreo-api -n zegreo-api --timeout=120s
+            kubectl rollout status deploy zegreo-api -n zegreo-api --timeout=300s
           "
