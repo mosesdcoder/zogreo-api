@@ -2,7 +2,7 @@ name: "[development] Deploy Zogreo API"
 
 on:
   push:
-    branches: [dev]
+    branches: [qa]
   workflow_dispatch:
 
 jobs:
