@@ -73,7 +73,10 @@ jobs:
 
       - name: Apply manifests and rollout
         run: |
-          ssh -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" "
+          ssh -o StrictHostKeyChecking=no \
+              -o ServerAliveInterval=30 \
+              -o ServerAliveCountMax=10 \
+              "$SSH_USER@$SSH_HOST" "
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml &&
             kubectl apply -f /tmp/zegreo-api-k8s/ &&
             kubectl rollout restart deploy zegreo-api -n zegreo-api &&
