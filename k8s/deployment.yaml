@@ -15,6 +15,7 @@ spec:
       labels:
         app: zegreo-api
     spec:
+      terminationGracePeriodSeconds: 30
       imagePullSecrets:
         - name: do-registry-secret
       containers:
